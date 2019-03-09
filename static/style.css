@@ -1,0 +1,78 @@
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background: whitesmoke;
+  font-family: sans-serif;
+}
+
+.toRight {
+  width: 100%;
+  height: 0;
+  display: flex;
+  justify-content: right;
+}
+
+.download {
+  border: 2px solid black;
+  border-radius: 5px;
+  padding: 7px;
+  padding-top: 0;
+  margin-top: 2em;
+}
+
+.downloadBar {
+  height: 10px;
+  background: green;
+  width: 77%;
+  position: relative;
+  left: -7px;
+}
+
+.downloadInfo {
+  display: flex;
+  justify-content: space-between;
+  margin-top: .5em;
+}
+
+.downloadCancel {
+  position: relative;
+  left: 16px;
+  background: white;
+  border: 1px solid black;
+  border-radius: 25px;
+  padding: .2em;
+  top: -.4em;
+  height: 10px;
+  width: 20px;
+  display: flex;
+  justify-content: center;
+  align-content: center;
+  overflow: hidden;
+}
+
+.downloadCancel >span{
+  font-size: 20px;
+  position: relative;
+  top: -.42em;
+}
+
+.name {
+  text-align: center;
+  margin-top: .5em;
+}
+
+#downloads {
+  width: 80%;
+  margin: auto;
+  margin-top: 5%;
+}
+
+#upperMenu {
+  display: flex;
+  justify-content: space-around;
+}

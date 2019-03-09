@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>PyWebload</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+</head>
+
+<body>
+<div id="upperMenu">
+    <label>Maximum download speed: <input id="limit" type="number" value="0">kB/s</label>
+    <div>
+        <input id="newUrl" type="text" placeholder="url">
+        <input id="newCategory" type="text" placeholder="category">
+        <button id="newDownload">Start</button>
+    </div>
+</div>
+<div id='downloads'>
+    <!--
+    <div class='download'>
+        <div class="toRight">
+            <div class="downloadCancel"><span>&#x274c;</span></div>
+        </div>
+        <div class="downloadBar"></div>
+        <div class="name">super_legal_film_cz.avi</div>
+        <div class="downloadInfo">
+            <span class="speed">10 MB/s</span>
+            <span class="percentage">77%</span>
+            <span class="timeLeft">1:00:32</span>
+            <span>4.75MB/8.71MB</span>
+        </div>
+    </div>
+    -->
+</div>
+</body>
+
+<script>
+    const $ = document.querySelector.bind(document);
+    const newDownloadBtn = $('#newDownload');
+    const newUrl = $('#newUrl');
+    const newCategory = $('#newCategory');
+    const downloadsDiv = $('#downloads');
+    const limit = $('#limit');
+    const downloads = {};
+
+    newDownloadBtn.onclick = () => {
+        let xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/download");
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+        xhr.send(`url=${encodeURIComponent(newUrl.value)}&category=${encodeURIComponent(newCategory.value)}`);
+        newUrl.value = '';
+    };
+
+    limit.onchange = () => {
+        let xhr = new XMLHttpRequest();
+        xhr.open("GET", `/api/setLimit/${limit.value}`);
+        xhr.send(null);
+    };
+
+    function z(num){
+        num = '' + num;
+        while (num.length < 2)
+            num = '0' + num;
+        return num;
+    }
+
+    setInterval(() => {
+        let xhr = new XMLHttpRequest();
+        xhr.open("GET", "/api/downloads");
+        xhr.onreadystatechange = () => {
+            if (xhr.readyState != 4 || xhr.status != 200)
+                return;
+            let downloadsData = JSON.parse(xhr.responseText);
+
+            for (let url of Object.keys(downloads))
+                if (!(url in downloadsData)){
+                    downloads[url].parentElement.removeChild(downloads[url]);
+                    delete downloads[url];
+                }
+
+
+            for (let url of Object.keys(downloadsData)){
+                let downloadData = downloadsData[url];
+                if (!(url in downloads)){
+                    let mainDownloadDiv = document.createElement('div');
+                    mainDownloadDiv.classList.add('download');
+                    mainDownloadDiv.innerHTML = `
+<div class="toRight">
+    <div class="downloadCancel"><span>&#x274c;</span></div>
+</div>
+<div class="downloadBar"></div>
+<div class="name">super_legal_film_cz.avi</div>
+<div class="downloadInfo">
+    <span class="speed">10 MB/s</span>
+    <span class="percentage">77%</span>
+    <span class="timeLeft">1:00:32</span>
+    <span class="fileSize">4.75MB/8.71MB</span>
+</div>`;
+                    downloadsDiv.appendChild(mainDownloadDiv);
+                    downloads[url] = mainDownloadDiv;
+                }
+                let download = downloads[url];
+                download.querySelector('.name').textContent = downloadData.fileName;
+                let percentageText = `${Math.floor(downloadData.percentage * 100) / 100}%`;
+                download.querySelector('.downloadBar').style.width = percentageText;
+                download.querySelector('.percentage').textContent = percentageText;
+                download.querySelector('.speed').textContent = `${Math.floor(downloadData.speed * 100 / 1024) / 100}kB/s`;
+                download.querySelector('.fileSize').textContent = `${Math.floor(downloadData.fileSizeDownloaded * 100 / (1024 * 1024)) / 100}MB/${Math.floor(downloadData.fileSize * 100 / (1024 * 1024)) / 100}MB`;
+
+                let secondsLeft = (downloadData.fileSize - downloadData.fileSizeDownloaded) / downloadData.speed;
+                let hours = Math.floor(secondsLeft / 3600);
+                let minutes = Math.floor((secondsLeft - (hours * 3600)) / 60);
+                let seconds = Math.floor(secondsLeft - (hours * 3600) - (minutes * 60));
+
+                download.querySelector('.timeLeft').textContent = `${z(hours)}:${z(minutes)}:${z(seconds)}`
+            }
+
+        };
+        xhr.send(null);
+    }, 2000);
+
+    let xhr = new XMLHttpRequest();
+    xhr.open("GET", "/api/getLimit");
+    xhr.onreadystatechange = () => {
+        if (xhr.readyState != 4 || xhr.status != 200)
+            limit.value = xhr.responseText;
+    };
+    xhr.send(null);
+
+</script>
+
+</html>
