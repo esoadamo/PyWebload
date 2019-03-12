@@ -3,8 +3,9 @@ import re
 import json
 import time
 
-from os import path, makedirs
+from os import path, makedirs, unlink
 from threading import Thread
+from shutil import move
 
 
 class Download:
@@ -12,6 +13,8 @@ class Download:
         self.url = url
         self.target_folder = target_folder
         self.target_file = None
+        self.download_file = None
+        self.download_info_file = None
         self.file_name = None
         self.file_size = 0
         self.download_speed_limit = None
@@ -20,6 +23,12 @@ class Download:
         self.speed = 0
         self.percentage = 0
         self.time_start = 0
+        
+    def _save_download_info(self):
+        if self.download_info_file is None:
+            return
+        with open(self.download_info_file, 'w') as f:
+            f.write(self.url)
 
     def start(self, asynch=False):
         class ThreadDownload(Thread):
@@ -41,14 +50,19 @@ class Download:
                     if '.' not in self.file_name:
                         self.file_name = self.file_name[::-1].replace('-', '.', 1)[::-1]
                 self.target_file = path.join(self.target_folder, self.file_name)
+                self.download_file = self.target_file + ".chunk"
+                self.download_info_file = self.download_file + ".info"
                 self.time_start = time.time()
                 self.downloaded_bytes = 0
                 self.percentage = 0
                 self.finished = False
                 if not path.exists(self.target_folder):
                     makedirs(self.target_folder)
-                with open(self.target_file, 'wb') as f:
+                self._save_download_info()
+                with open(self.download_file, 'wb') as f:
                     chunk_start = time.time()
+                    speed_counting_start = time.time()
+                    speed_counting_bytes = 0 
                     chunk_size = 8192
                     for chunk in r.iter_content(chunk_size=chunk_size):
                         f.write(chunk)
@@ -58,13 +72,16 @@ class Download:
                                 time.sleep(sleep_for)
                         self.downloaded_bytes += chunk_size
                         self.percentage = 100 * self.downloaded_bytes / self.file_size
-                        time_taken = time.time() - chunk_start
-                        if time_taken == 0:
-                            self.speed = chunk_size
-                        else:
-                            self.speed = chunk_size / time_taken
+                        time_taken = time.time() - speed_counting_start
+                        speed_counting_bytes += chunk_size
+                        if time_taken >= 1:
+                            self.speed = speed_counting_bytes / time_taken
+                            speed_counting_bytes = 0
+                            speed_counting_start = time.time()
                         chunk_start = time.time()
 
+                move(self.download_file, self.target_file)
+                unlink(self.download_info_file)
                 r.close()
                 self.finished = True
         thread = ThreadDownload()
@@ -75,7 +92,7 @@ class Download:
 
 if __name__ == '__main__':
     d = Download('http://server/owncloud/index.php/s/tBBSLcRFX9nKjd9/download', r'c:\tmp')
-    d.download_speed_limit = None
+    d.download_speed_limit = 50 * 1024
     d.start(True)
     while True:
         print(d.speed / 1024, d.percentage)

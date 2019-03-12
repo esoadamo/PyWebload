@@ -10,7 +10,7 @@ app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 downloads = []
-downloads_limit = [500000]
+downloads_limit = [500000]  # kB/s
 
 
 @app.route('/')
