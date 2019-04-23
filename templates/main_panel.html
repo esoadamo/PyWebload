@@ -10,13 +10,16 @@
 <body>
 <div id="upperMenu">
     <label>Maximum download speed: <input id="limit" type="number" value="0">kB/s</label>
-    <div>
-        <input id="newUrl" type="text" placeholder="url">
-        <input id="newCategory" type="text" placeholder="category">
+    <div id="newDownloadForm">
+        <label for="newUrl"></label><input id="newUrl" type="text" placeholder="url">
+        <label for="newCategory"></label><input id="newCategory" type="text" placeholder="category">
         <button id="newDownload">Start</button>
     </div>
 </div>
 <div id='downloads'>
+    <div id="downloadsFirstLoad">loading data from the server...</div>
+    <div id="downloadsRunning" class="horizontal-line">running downloads</div>
+    <div id="downloadsFinished" class="horizontal-line">completed downloads</div>
     <!--
     <div class='download'>
         <div class="toRight">
@@ -40,17 +43,20 @@
     const newDownloadBtn = $('#newDownload');
     const newUrl = $('#newUrl');
     const newCategory = $('#newCategory');
-    const downloadsDiv = $('#downloads');
+    const downloadsRunningDiv = $('#downloadsRunning');
+    const downloadFinishedDiv = $('#downloadsFinished');
     const limit = $('#limit');
     const downloads = {};
 
-    newDownloadBtn.onclick = () => {
+    function postNewDownload() {
         let xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/download");
+        xhr.open("POST", "/api/download/new");
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
         xhr.send(`url=${encodeURIComponent(newUrl.value)}&category=${encodeURIComponent(newCategory.value)}`);
         newUrl.value = '';
-    };
+    }
+
+    newDownloadBtn.onclick = postNewDownload;
 
     limit.onchange = () => {
         let xhr = new XMLHttpRequest();
@@ -58,7 +64,7 @@
         xhr.send(null);
     };
 
-    function z(num){
+    function z(num) {
         num = '' + num;
         while (num.length < 2)
             num = '0' + num;
@@ -69,20 +75,25 @@
         let xhr = new XMLHttpRequest();
         xhr.open("GET", "/api/downloads");
         xhr.onreadystatechange = () => {
-            if (xhr.readyState != 4 || xhr.status != 200)
+            if (xhr.readyState !== 4 || xhr.status !== 200)
                 return;
             let downloadsData = JSON.parse(xhr.responseText);
 
+            const downloadsFirstLoad = $('#downloadsFirstLoad');
+            if (downloadsFirstLoad !== null)
+                downloadsFirstLoad.parentElement.removeChild(downloadsFirstLoad);
+
+            // remove all finished downloads
             for (let url of Object.keys(downloads))
-                if (!(url in downloadsData)){
+                if (!(url in downloadsData)) {
                     downloads[url].parentElement.removeChild(downloads[url]);
                     delete downloads[url];
                 }
 
-
-            for (let url of Object.keys(downloadsData)){
+            // change the state of current downloads
+            for (let url of Object.keys(downloadsData)) {
                 let downloadData = downloadsData[url];
-                if (!(url in downloads)){
+                if (!(url in downloads)) {
                     let mainDownloadDiv = document.createElement('div');
                     mainDownloadDiv.classList.add('download');
                     mainDownloadDiv.innerHTML = `
@@ -97,7 +108,7 @@
     <span class="timeLeft">1:00:32</span>
     <span class="fileSize">4.75MB/8.71MB</span>
 </div>`;
-                    downloadsDiv.appendChild(mainDownloadDiv);
+                    downloadsRunningDiv.appendChild(mainDownloadDiv);
                     downloads[url] = mainDownloadDiv;
                 }
                 let download = downloads[url];
@@ -113,7 +124,19 @@
                 let minutes = Math.floor((secondsLeft - (hours * 3600)) / 60);
                 let seconds = Math.floor(secondsLeft - (hours * 3600) - (minutes * 60));
 
-                download.querySelector('.timeLeft').textContent = `${z(hours)}:${z(minutes)}:${z(seconds)}`
+                download.querySelector('.timeLeft').textContent = `${z(hours)}:${z(minutes)}:${z(seconds)}`;
+
+                download.querySelector('.downloadCancel').onclick = () => {
+                    let xhr = new XMLHttpRequest();
+                    xhr.open("POST", "/api/download/cancel");
+                    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+                    xhr.send(`url=${encodeURIComponent(url)}`);
+                };
+
+                if (downloadData.finished) {
+                    downloads[url].parentElement.removeChild(downloads[url]);
+                    downloadFinishedDiv.appendChild(downloads[url]);
+                }
             }
 
         };
@@ -123,10 +146,16 @@
     let xhr = new XMLHttpRequest();
     xhr.open("GET", "/api/getLimit");
     xhr.onreadystatechange = () => {
-        if (xhr.readyState != 4 || xhr.status != 200)
+        if (xhr.readyState !== 4 || xhr.status !== 200)
             limit.value = xhr.responseText;
     };
     xhr.send(null);
+
+    $('#newDownloadForm').onkeypress = (e) => {
+        if (e.keyCode === 13) {
+            postNewDownload();
+        }
+    };
 
 </script>
 

@@ -4,7 +4,7 @@ from download import Download
 from flask import Flask, render_template, request
 from os import path
 
-DOWNLOAD_FOLDER = "e:\\tmp\\"
+DOWNLOAD_FOLDER = "/media/ramdisk/"
 
 app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -18,7 +18,7 @@ def main():
     return render_template('main_panel.html')
 
 
-@app.route('/api/download', methods=["POST"])
+@app.route('/api/download/new', methods=["POST"])
 def new_download():
     url = request.form.get('url', '').strip()
     category = request.form.get('category', '')
@@ -31,9 +31,24 @@ def new_download():
     return 'ok'
 
 
+@app.route('/api/download/cancel', methods=["POST"])
+def cancel_download():
+    url = request.form.get('url', '').strip()
+    if len(url) == 0:
+        return 'bad request'
+    download_to_remove = None
+    for download in downloads:
+        if download.url == url:
+            download.cancel()
+            download_to_remove = download
+            break
+    if download_to_remove is not None:
+        downloads.remove(download_to_remove)
+    return 'ok'
+
+
 @app.route('/api/downloads')
 def get_downloads():
-    [downloads.remove(download) for download in [download for download in downloads if download.finished]]
     set_download_limit(downloads_limit[0])
 
     return json.dumps({download.url: {
@@ -41,7 +56,8 @@ def get_downloads():
         'fileSize': download.file_size,
         'fileName': download.file_name,
         'fileSizeDownloaded': download.downloaded_bytes,
-        'percentage': download.percentage
+        'percentage': download.percentage,
+        'finished': download.finished
     } for download in downloads})
 
 
@@ -56,8 +72,9 @@ def set_download_limit(limit):
         limit = None
     # noinspection PyTypeChecker
     downloads_limit[0] = limit
-    for download in downloads:
-        download.download_speed_limit = limit * 1024 / len(downloads) if limit is not None else None
+    running_downloads = [download for download in downloads if not download.finished]
+    for download in running_downloads:
+        download.download_speed_limit = limit * 1024 / len(running_downloads) if limit is not None else None
     return 'ok'
 
 

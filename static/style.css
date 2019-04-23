@@ -20,8 +20,7 @@ html {
 .download {
   border: 2px solid black;
   border-radius: 5px;
-  padding: 7px;
-  padding-top: 0;
+  padding: 0 7px 7px;
   margin-top: 2em;
 }
 
@@ -53,6 +52,8 @@ html {
   justify-content: center;
   align-content: center;
   overflow: hidden;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .downloadCancel >span{
@@ -68,11 +69,23 @@ html {
 
 #downloads {
   width: 80%;
-  margin: auto;
-  margin-top: 5%;
+  margin: 5% auto auto;
 }
 
 #upperMenu {
   display: flex;
   justify-content: space-around;
+}
+
+.horizontal-line {
+  margin-top: 1em;
+  border-bottom: 1px solid black;
+}
+
+#downloadsFirstLoad {
+  border: 3px solid #F00;
+  color: #F0F;
+  border-radius: 10px;
+  padding: 1em;
+  text-align: center;
 }
