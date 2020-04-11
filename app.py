@@ -26,9 +26,16 @@ def main():
 def new_download():
     url = request.form.get('url', '').strip()
     category = request.form.get('category', '')
+    cookies = json.loads(request.form.get('cookies', '{}'))
+
     if len(url) == 0:
         return 'bad request'
-    download = Download(url, path.join(CONFIG["download_directory"], category))
+
+    download = Download(url,
+                        path.join(CONFIG["download_directory"], category),
+                        referer=request.form.get('referer'),
+                        user_agent=request.form.get('userAgent'),
+                        cookies=cookies)
     downloads.append(download)
     set_download_limit(CONFIG["download_speed"])
     download.start(asynch=True)

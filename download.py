@@ -8,7 +8,7 @@ from shutil import move
 
 
 class Download:
-    def __init__(self, url, target_folder):
+    def __init__(self, url, target_folder, cookies=None, referer=None, user_agent=None):
         self.url = url
         self.target_folder = target_folder
         self.target_file = None
@@ -22,6 +22,13 @@ class Download:
         self.speed = 0
         self.percentage = 0
         self.time_start = 0
+        self.cookies = cookies
+        self.headers = {}
+
+        if referer is not None:
+            self.headers['Referer'] = referer
+        if user_agent is not None:
+            self.headers['User-Agent'] = user_agent
 
         self._cancel = False
 
@@ -34,7 +41,7 @@ class Download:
                 self.download_info_file = self.target_folder + "pyload.info.json"
 
                 try:
-                    r = requests.get(self.url, stream=True)
+                    r = requests.get(self.url, stream=True, headers=self.headers, cookies=self.cookies)
                     self.file_size = r.headers.get('Content-Length', None)
                     if self.file_size is not None:
                         self.file_size = int(self.file_size)
