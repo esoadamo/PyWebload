@@ -2,6 +2,7 @@ import json
 
 from download import Download
 from flask import Flask, render_template, request
+from flask_cors import CORS, cross_origin
 from os import path
 
 CONFIG_FILE = "config.json"
@@ -12,6 +13,7 @@ CONFIG = {
 }
 
 app = Flask(__name__)
+CORS(app)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 downloads = []
@@ -23,6 +25,7 @@ def main():
 
 
 @app.route('/api/download/new', methods=["POST"])
+@cross_origin()
 def new_download():
     url = request.form.get('url', '').strip()
     category = request.form.get('category', '')
@@ -97,6 +100,12 @@ def set_download_limit(limit):  # type: (int) -> str
     for download in running_downloads:
         download.download_speed_limit = limit * 1024 / len(running_downloads) if limit is not None else None
     return 'ok'
+
+
+@app.route('/api/ping', methods=['GET', 'POST'])
+@cross_origin()
+def api_ping():
+    return 'pong'
 
 
 def load_config():
