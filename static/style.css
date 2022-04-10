@@ -36,6 +36,7 @@ html {
   display: flex;
   justify-content: space-between;
   margin-top: .5em;
+  flex-wrap: wrap;
 }
 
 .downloadCancel {
@@ -65,6 +66,7 @@ html {
 .name {
   text-align: center;
   margin-top: .5em;
+  word-wrap: anywhere;
 }
 
 #downloads {
@@ -75,6 +77,7 @@ html {
 #upperMenu {
   display: flex;
   justify-content: space-around;
+  flex-wrap: wrap;
 }
 
 .horizontal-line {
