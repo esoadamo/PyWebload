@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>PyWebload</title>
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <link rel="stylesheet" type="text/css" href="static/style.css">
 </head>
 
 <body>
@@ -19,7 +19,10 @@
 <div id='downloads'>
     <div id="downloadsFirstLoad">loading data from the server...</div>
     <div id="downloadsRunning" class="horizontal-line">running downloads</div>
-    <div id="downloadsFinished" class="horizontal-line">completed downloads</div>
+    <div id="downloadsFinished" class="horizontal-line">
+        <span>completed downloads</span>
+        <button id="clearAllFinished">Clear all</button>
+    </div>
     <!--
     <div class='download'>
         <div class="toRight">
@@ -41,6 +44,7 @@
 <script>
     const $ = document.querySelector.bind(document);
     const newDownloadBtn = $('#newDownload');
+    const clearFinishedBtn = $('#clearAllFinished');
     const newUrl = $('#newUrl');
     const newCategory = $('#newCategory');
     const downloadsRunningDiv = $('#downloadsRunning');
@@ -48,20 +52,44 @@
     const limit = $('#limit');
     const downloads = {};
 
+    /**
+     * @type {string[]}
+     */
+    const finishedDownloadURLs = [];
+
     function postNewDownload() {
         let xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/download/new");
+        xhr.open("POST", "api/download/new");
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
         xhr.send(`url=${encodeURIComponent(newUrl.value)}&category=${encodeURIComponent(newCategory.value)}`);
         newUrl.value = '';
+    }
+
+    /**
+     * Cancels running download or removes finished one
+     * @param url {string}
+     * @return {void}
+     */
+    function cancelDownload(url) {
+        let xhr = new XMLHttpRequest();
+        xhr.open("POST", "api/download/cancel");
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+        xhr.send(`url=${encodeURIComponent(url)}`);
     }
 
     newDownloadBtn.onclick = postNewDownload;
 
     limit.onchange = () => {
         let xhr = new XMLHttpRequest();
-        xhr.open("GET", `/api/setLimit/${limit.value}`);
+        xhr.open("GET", `api/setLimit/${limit.value}`);
         xhr.send(null);
+    };
+
+    clearFinishedBtn.onclick = () => {
+        clearFinishedBtn.disabled = true;
+        finishedDownloadURLs.forEach((url) => cancelDownload(url));
+        finishedDownloadURLs.length = 0;
+        clearFinishedBtn.disabled = false;
     };
 
     function z(num) {
@@ -73,7 +101,7 @@
 
     setInterval(() => {
         let xhr = new XMLHttpRequest();
-        xhr.open("GET", "/api/downloads");
+        xhr.open("GET", "api/downloads");
         xhr.onreadystatechange = () => {
             if (xhr.readyState !== 4 || xhr.status !== 200)
                 return;
@@ -83,12 +111,15 @@
             if (downloadsFirstLoad !== null)
                 downloadsFirstLoad.parentElement.removeChild(downloadsFirstLoad);
 
-            // remove all finished downloads
+            // remove all already removed downloads
             for (let url of Object.keys(downloads))
                 if (!(url in downloadsData)) {
                     downloads[url].parentElement.removeChild(downloads[url]);
                     delete downloads[url];
                 }
+
+            // clear finished urls
+            finishedDownloadURLs.length = 0;
 
             // change the state of current downloads
             for (let url of Object.keys(downloadsData)) {
@@ -130,16 +161,12 @@
                     download.querySelector('.timeLeft').textContent = "download ended";
                 }
 
-                download.querySelector('.downloadCancel').onclick = () => {
-                    let xhr = new XMLHttpRequest();
-                    xhr.open("POST", "/api/download/cancel");
-                    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                    xhr.send(`url=${encodeURIComponent(url)}`);
-                };
+                download.querySelector('.downloadCancel').onclick = () => cancelDownload(url);
 
                 if (downloadData.finished) {
                     downloads[url].parentElement.removeChild(downloads[url]);
                     downloadFinishedDiv.appendChild(downloads[url]);
+                    finishedDownloadURLs.push(url);
                 }
             }
 
@@ -148,7 +175,7 @@
     }, 2000);
 
     let xhr = new XMLHttpRequest();
-    xhr.open("GET", "/api/getLimit");
+    xhr.open("GET", "api/getLimit");
     xhr.onreadystatechange = () => {
         if (xhr.readyState !== 4 || xhr.status !== 200)
             limit.value = xhr.responseText;
