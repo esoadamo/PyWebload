@@ -38,7 +38,7 @@ class Download:
         if user_agent is not None:
             self.headers['User-Agent'] = user_agent
 
-        self._cancel = False
+        self.__cancel = False
 
     def start(self, wait_for_completion: bool = True) -> None:
         thread = Thread(target=self.start_sync)
@@ -51,6 +51,7 @@ class Download:
         self.downloaded_bytes = 0
         self.percentage = 0
         self.finished = False
+        file_name: Optional[str] = None
 
         try:
             req = requests.get(self.url, stream=True, headers=self.headers, cookies=self.cookies)
@@ -58,8 +59,7 @@ class Download:
             if self.file_size is not None:
                 self.file_size = int(self.file_size)
 
-            file_name: Optional[str] = None
-            if 'Content-Disposition' in req.headers:
+            if file_name is None and 'Content-Disposition' in req.headers:
                 re_filename = re.search('filename="(.*)"', req.headers['Content-Disposition'], re.I | re.M)
                 if re_filename:
                     file_name = re_filename.groups()[0]
@@ -79,39 +79,37 @@ class Download:
             )
             self.time_start = time.time()
 
-            with open(self.file_chunks, 'wb') as f:
-                chunk_start = time.time()
-                speed_counting_start = time.time()
-                speed_counting_bytes = 0
-                chunk_size = 8192
-                for chunk in req.iter_content(chunk_size=chunk_size):
-                    if self._cancel:
+            with self.file_chunks.open('ab') as f:
+                while not self.__cancel:
+                    if self.download_speed_limit:
+                        max_data_per_2_ms = max(1, self.download_speed_limit * 2 // 100)
+                    else:
+                        max_data_per_2_ms = 8192
+                    time_chunk_start = time.time()
+                    data = req.raw.read(max_data_per_2_ms)
+                    if self.download_speed_limit:
+                        while time.time() - time_chunk_start < 0.02:
+                            time.sleep(0.005)
+                    time_chunk_end = time.time()
+                    if not data:
                         break
-                    f.write(chunk)
-                    if self.download_speed_limit is not None:
-                        sleep_for = chunk_start + (chunk_size / self.download_speed_limit) - time.time()
-                        if sleep_for > 0:
-                            time.sleep(sleep_for)
-                    self.downloaded_bytes += chunk_size
-                    self.percentage = 100 * self.downloaded_bytes / self.file_size
-                    time_taken = time.time() - speed_counting_start
-                    speed_counting_bytes += chunk_size
-                    if time_taken >= 1:
-                        self.speed = speed_counting_bytes / time_taken
-                        speed_counting_bytes = 0
-                        speed_counting_start = time.time()
-                    chunk_start = time.time()
+                    f.write(data)
+                    self.speed = len(data) / (time_chunk_end - time_chunk_start)
+                    self.downloaded_bytes += len(data)
+                    if self.file_size is not None:
+                        self.percentage = 100 * self.downloaded_bytes / self.file_size
+
             req.close()
         except requests.exceptions.ConnectionError:
             self.cancel()
-        if not self._cancel:
+        if not self.__cancel:
             move(self.file_chunks, self.file_target)
         else:
             self.file_chunks.unlink(missing_ok=True)
         self.finished = True
 
     def cancel(self):
-        self._cancel = True
+        self.__cancel = True
 
 
 if __name__ == '__main__':
@@ -126,8 +124,9 @@ if __name__ == '__main__':
         d.start(wait_for_completion=False)
         try:
             while not d.finished:
-                print(f"\rspeed={d.speed / 1024:04.2f} KiBps, percentage={d.percentage:03.1f}%", end="", flush=True)
+                print(f"\rspeed={d.speed / 1024:04.2f} KiBps, percentage={d.percentage:03.1f} %", end="", flush=True)
                 time.sleep(1)
+            print()
             return 0
         except KeyboardInterrupt:
             d.cancel()
