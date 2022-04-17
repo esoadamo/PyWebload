@@ -48,7 +48,7 @@ def new_download():
                         cookies=cookies)
     RUNNING_DOWNLOADS.append(download)
     set_download_limit(CONFIG["download_speed"])
-    download.start(wait_for_completion=False)
+    download.start(wait_for_completion=False, retry_count=10)
     return 'ok'
 
 

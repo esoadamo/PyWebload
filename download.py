@@ -23,11 +23,10 @@ class Download:
         self.__dir_target: Path = dir_target if dir_target is not None else Path.cwd()
         self.__file_target: Optional[Path] = None
         self.__file_chunks: Optional[Path] = None
-        self.__target_size: int = 0
+        self.__target_size: Optional[int] = None
         self.__finished: bool = False
         self.__downloaded_bytes: int = 0
         self.__speed: float = 0
-        self.__percentage: float = 0
         self.__time_start: int = 0
         self.__cookies: Optional[Dict[str, str]] = cookies
         self.__headers: Dict[str, str] = {}
@@ -68,7 +67,9 @@ class Download:
 
     @property
     def percentage(self) -> float:
-        return self.__percentage
+        if self.__target_size is None or self.__target_size == 0:
+            return 0.0
+        return 100 * self.__downloaded_bytes / self.__target_size
 
     @property
     def time_start(self) -> float:
@@ -90,18 +91,23 @@ class Download:
     def canceled(self) -> bool:
         return self.__cancel
 
-    def start(self, wait_for_completion: bool = True) -> None:
-        thread = Thread(target=self.start_sync)
+    def start(self, wait_for_completion: bool = True, retry_count: int = 0, retry_sleep_time: float = 10) -> None:
+        thread = Thread(target=self.start_sync, args=(retry_count, retry_sleep_time))
         thread.start()
         if wait_for_completion:
             thread.join()
 
-    def start_sync(self) -> None:
+    def start_sync(self, retry_count: int = 0, retry_sleep_time: float = 10) -> None:
         self.__dir_target.mkdir(parents=True, exist_ok=True)
         self.__downloaded_bytes = 0
-        self.__percentage = 0
         self.__finished = False
         file_name: Optional[str] = None
+
+        for ch_file in self.dir_target.iterdir():
+            if re.match(rf"^.*{re.escape(self.__file_chunk_suffix)}$", ch_file.name):
+                file_name = ch_file.name[:-len(self.__file_chunk_suffix)]
+                self.__file_chunks = ch_file
+                self.__headers["Range"] = f"bytes={ch_file.stat().st_size}-"
 
         try:
             req = requests.get(self.__url, stream=True, headers=self.__headers, cookies=self.__cookies)
@@ -124,34 +130,44 @@ class Download:
 
             self.__file_target = self.__dir_target.joinpath(Path(file_name).name).resolve()
             del file_name
-            self.__file_chunks = self.__dir_target.joinpath(
-                self.__file_target.name + self.__file_chunk_suffix
-            )
+            if self.__file_chunks is None:
+                self.__file_chunks = self.__dir_target.joinpath(
+                    self.__file_target.name + self.__file_chunk_suffix
+                )
             self.__time_start = time.time()
 
-            with self.__file_chunks.open('ab') as f:
+            with self.__file_chunks.open('ab' if req.status_code == 206 else 'wb') as f:
+                already_downloaded_bytes = self.file_chunks.stat().st_size
+                self.__downloaded_bytes = already_downloaded_bytes
+                self.__target_size += already_downloaded_bytes
+                del already_downloaded_bytes
+
                 while not self.__cancel:
                     if self.download_speed_limit:
-                        max_data_per_2_ms = max(1, self.download_speed_limit * 2 // 100)
+                        max_data_per_2_ms = int(max(1, self.download_speed_limit * 2 // 100))
                     else:
                         max_data_per_2_ms = 8192
                     time_chunk_start = time.time()
-                    data = req.raw.read(max_data_per_2_ms)
+                    try:
+                        data = next(req.iter_content(chunk_size=max_data_per_2_ms))
+                    except StopIteration:
+                        break
                     if self.download_speed_limit:
                         while time.time() - time_chunk_start < 0.02:
                             time.sleep(0.005)
                     time_chunk_end = time.time()
-                    if not data:
-                        break
                     f.write(data)
                     self.__speed = len(data) / (time_chunk_end - time_chunk_start)
                     self.__downloaded_bytes += len(data)
-                    if self.__target_size is not None:
-                        self.__percentage = 100 * self.__downloaded_bytes / self.__target_size
 
             req.close()
         except requests.exceptions.ConnectionError:
-            self.cancel()
+            if retry_count > 0:
+                time.sleep(retry_sleep_time)
+                self.start_sync(retry_count=retry_count - 1, retry_sleep_time=retry_sleep_time * 2)
+                return
+            else:
+                self.cancel()
         if not self.__cancel:
             move(self.__file_chunks, self.__file_target)
         else:
