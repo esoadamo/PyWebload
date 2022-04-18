@@ -162,17 +162,12 @@
                 download.querySelector('.speed').textContent = `${Math.floor(downloadData.speed * 100 / 1024) / 100}kB/s`;
                 download.querySelector('.fileSize').textContent = `${Math.floor(downloadData.fileSizeDownloaded * 100 / (1024 * 1024)) / 100}MB/${Math.floor(downloadData.fileSize * 100 / (1024 * 1024)) / 100}MB`;
 
-                if (!downloadData.finished) {
-                    let secondsLeft = downloadData.timeLeft;
-                    console.log('Secondfs left', secondsLeft);
-                    let hours = Math.floor(secondsLeft / 3600);
-                    let minutes = Math.floor((secondsLeft - (hours * 3600)) / 60);
-                    let seconds = Math.floor(secondsLeft - (hours * 3600) - (minutes * 60));
+                const secondsLeft = downloadData.timeLeft;
+                const hours = Math.floor(secondsLeft / 3600);
+                const minutes = Math.floor((secondsLeft - (hours * 3600)) / 60);
+                const seconds = Math.floor(secondsLeft - (hours * 3600) - (minutes * 60));
 
-                    download.querySelector('.timeLeft').textContent = `${z(hours)}:${z(minutes)}:${z(seconds)}`;
-                } else {
-                    download.querySelector('.timeLeft').textContent = "download ended";
-                }
+                download.querySelector('.timeLeft').textContent = `${z(hours)}:${z(minutes)}:${z(seconds)}`;
 
                 download.querySelector('.downloadCancel').onclick = () => cancelDownload(url);
 

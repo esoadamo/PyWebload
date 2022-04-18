@@ -93,7 +93,7 @@ class Download:
         if self.__target_size == 0:
             return 0
         if self.__time_end is not None:
-            return self.__time_start - self.__time_end
+            return self.__time_end - self.__time_start
         return (self.__target_size - self.__downloaded_bytes) / self.speed
 
     @property
@@ -169,20 +169,21 @@ class Download:
                 self.__target_size += already_downloaded_bytes
                 del already_downloaded_bytes
 
+                check_interval_ms = 10
                 while not self.__canceled:
                     if self.download_speed_limit:
-                        max_data_per_2_ms = int(max(1, self.download_speed_limit * 2 // 100))
+                        max_data_per_interval = int(max(1, check_interval_ms * self.download_speed_limit // 1000))
                     else:
-                        max_data_per_2_ms = inf
+                        max_data_per_interval = inf
 
                     time_chunk_start = time.time()
                     try:
-                        data = next(req.iter_content(chunk_size=int(min(max_data_per_2_ms, 1024))))
+                        data = next(req.iter_content(chunk_size=int(min(max_data_per_interval, check_interval_ms * 204))))
                     except StopIteration:
                         break
                     if self.download_speed_limit:
-                        while time.time() - time_chunk_start < (0.02 * len(data) / max_data_per_2_ms):
-                            time.sleep(0.005)
+                        while time.time() - time_chunk_start < ((check_interval_ms / 1000) * len(data) / max_data_per_interval):
+                            time.sleep(check_interval_ms / 10000)
                     f.write(data)
                     self.__downloaded_bytes += len(data)
 
