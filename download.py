@@ -7,6 +7,7 @@ from shutil import move
 from typing import Optional, Dict
 from pathlib import Path
 from hashlib import md5
+from math import inf
 
 
 class Download:
@@ -26,11 +27,15 @@ class Download:
         self.__target_size: Optional[int] = None
         self.__finished: bool = False
         self.__downloaded_bytes: int = 0
-        self.__speed: float = 0
         self.__time_start: int = 0
+        self.__time_end: Optional[int] = None
         self.__cookies: Optional[Dict[str, str]] = cookies
         self.__headers: Dict[str, str] = {}
-        self.__cancel = False
+        self.__canceled = False
+
+        self.__speed_time: float = 0
+        self.__speed_bytes: int = 0
+        self.__speed_value: float = 0
 
         if referer is not None:
             self.__headers['Referer'] = referer
@@ -63,7 +68,15 @@ class Download:
 
     @property
     def speed(self) -> float:
-        return self.__speed
+        if self.__time_end is not None:
+            return self.__downloaded_bytes / (self.__time_end - self.__time_start)
+
+        if time.time() - self.__speed_time >= 1:
+            self.__speed_value = (self.__downloaded_bytes - self.__speed_bytes) / (time.time() - self.__speed_time)
+            self.__speed_time = time.time()
+            self.__speed_bytes = self.__downloaded_bytes
+
+        return self.__speed_value
 
     @property
     def percentage(self) -> float:
@@ -74,6 +87,14 @@ class Download:
     @property
     def time_start(self) -> float:
         return self.__time_start
+
+    @property
+    def time_left(self) -> float:
+        if self.__target_size == 0:
+            return 0
+        if self.__time_end is not None:
+            return self.__time_start - self.__time_end
+        return (self.__target_size - self.__downloaded_bytes) / self.speed
 
     @property
     def cookies(self) -> Optional[Dict[str, str]]:
@@ -89,7 +110,11 @@ class Download:
 
     @property
     def canceled(self) -> bool:
-        return self.__cancel
+        return self.__canceled
+
+    @property
+    def started(self) -> bool:
+        return self.__file_chunks is not None
 
     def start(self, wait_for_completion: bool = True, retry_count: int = 0, retry_sleep_time: float = 10) -> None:
         thread = Thread(target=self.start_sync, args=(retry_count, retry_sleep_time))
@@ -101,6 +126,8 @@ class Download:
         self.__dir_target.mkdir(parents=True, exist_ok=True)
         self.__downloaded_bytes = 0
         self.__finished = False
+        self.__canceled = False
+        self.__time_end = None
         file_name: Optional[str] = None
 
         for ch_file in self.dir_target.iterdir():
@@ -142,40 +169,44 @@ class Download:
                 self.__target_size += already_downloaded_bytes
                 del already_downloaded_bytes
 
-                while not self.__cancel:
+                while not self.__canceled:
                     if self.download_speed_limit:
                         max_data_per_2_ms = int(max(1, self.download_speed_limit * 2 // 100))
                     else:
-                        max_data_per_2_ms = 8192
+                        max_data_per_2_ms = inf
+
                     time_chunk_start = time.time()
                     try:
-                        data = next(req.iter_content(chunk_size=max_data_per_2_ms))
+                        data = next(req.iter_content(chunk_size=int(min(max_data_per_2_ms, 1024))))
                     except StopIteration:
                         break
                     if self.download_speed_limit:
-                        while time.time() - time_chunk_start < 0.02:
+                        while time.time() - time_chunk_start < (0.02 * len(data) / max_data_per_2_ms):
                             time.sleep(0.005)
-                    time_chunk_end = time.time()
                     f.write(data)
-                    self.__speed = len(data) / (time_chunk_end - time_chunk_start)
                     self.__downloaded_bytes += len(data)
 
             req.close()
-        except requests.exceptions.ConnectionError:
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.ConnectTimeout,
+            requests.exceptions.RequestException
+        ):
             if retry_count > 0:
                 time.sleep(retry_sleep_time)
                 self.start_sync(retry_count=retry_count - 1, retry_sleep_time=retry_sleep_time * 2)
                 return
             else:
                 self.cancel()
-        if not self.__cancel:
+        if not self.__canceled:
             move(self.__file_chunks, self.__file_target)
         else:
             self.__file_chunks.unlink(missing_ok=True)
         self.__finished = True
+        self.__time_end = time.time()
 
     def cancel(self):
-        self.__cancel = True
+        self.__canceled = True
 
     @property
     def __file_chunk_suffix(self) -> str:

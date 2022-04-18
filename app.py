@@ -78,8 +78,9 @@ def get_downloads():
         'fileName': download.file_target.name,
         'fileSizeDownloaded': download.downloaded_bytes,
         'percentage': download.percentage,
+        'timeLeft': download.time_left,
         'finished': download.finished
-    } for download in RUNNING_DOWNLOADS})
+    } for download in RUNNING_DOWNLOADS if download.started})
 
 
 @APP.route('/api/getLimit')

@@ -124,6 +124,17 @@
 
             // change the state of current downloads
             for (let url of Object.keys(downloadsData)) {
+                /**
+                 * @type {({
+                 * speed: number,
+                 * fileSize: number,
+                 * fileName: string,
+                 * fileSizeDownloaded: number,
+                 * percentage: number,
+                 * timeLeft: number,
+                 * finished: boolean
+                 * })}
+                 */
                 let downloadData = downloadsData[url];
                 if (!(url in downloads)) {
                     let mainDownloadDiv = document.createElement('div');
@@ -152,7 +163,8 @@
                 download.querySelector('.fileSize').textContent = `${Math.floor(downloadData.fileSizeDownloaded * 100 / (1024 * 1024)) / 100}MB/${Math.floor(downloadData.fileSize * 100 / (1024 * 1024)) / 100}MB`;
 
                 if (!downloadData.finished) {
-                    let secondsLeft = (downloadData.fileSize - downloadData.fileSizeDownloaded) / downloadData.speed;
+                    let secondsLeft = downloadData.timeLeft;
+                    console.log('Secondfs left', secondsLeft);
                     let hours = Math.floor(secondsLeft / 3600);
                     let minutes = Math.floor((secondsLeft - (hours * 3600)) / 60);
                     let seconds = Math.floor(secondsLeft - (hours * 3600) - (minutes * 60));
