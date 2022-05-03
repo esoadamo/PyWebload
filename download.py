@@ -90,10 +90,10 @@ class Download:
 
     @property
     def time_left(self) -> float:
-        if self.__target_size == 0:
-            return 0
         if self.__time_end is not None:
             return self.__time_end - self.__time_start
+        if self.__target_size == 0 or self.speed == 0:
+            return 0
         return (self.__target_size - self.__downloaded_bytes) / self.speed
 
     @property
