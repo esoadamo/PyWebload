@@ -122,7 +122,7 @@ class Download:
         if wait_for_completion:
             thread.join()
 
-    def start_sync(self, retry_count: int = 0, retry_sleep_time: float = 10) -> None:
+    def start_sync(self, retry_count: int = 0, retry_sleep_time: float = 10, max_retry_sleep_time: float = 300) -> None:
         self.__dir_target.mkdir(parents=True, exist_ok=True)
         self.__downloaded_bytes = 0
         self.__finished = False
@@ -143,7 +143,7 @@ class Download:
                 self.__target_size = int(self.__target_size)
 
             if file_name is None and 'Content-Disposition' in req.headers:
-                re_filename = re.search('filename="(.*)"', req.headers['Content-Disposition'], re.I | re.M)
+                re_filename = re.search('filename="(.*?)"', req.headers['Content-Disposition'], re.I | re.M)
                 if re_filename:
                     file_name = re_filename.groups()[0]
             if file_name is None:
@@ -151,7 +151,7 @@ class Download:
                 if '?' in file_name:
                     file_name = file_name[:file_name.index('?')]
                 if '#' in file_name:
-                    file_name = file_name[:file_name.index('?')]
+                    file_name = file_name[:file_name.index('#')]
                 if '.' not in file_name:
                     file_name = file_name[::-1].replace('-', '.', 1)[::-1]
 
@@ -195,7 +195,7 @@ class Download:
         ):
             if retry_count > 0:
                 time.sleep(retry_sleep_time)
-                self.start_sync(retry_count=retry_count - 1, retry_sleep_time=retry_sleep_time * 2)
+                self.start_sync(retry_count=retry_count - 1, retry_sleep_time=max(retry_sleep_time * 2, max_retry_sleep_time))
                 return
             else:
                 self.cancel()
