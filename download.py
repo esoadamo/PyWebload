@@ -8,6 +8,7 @@ from typing import Optional, Dict
 from pathlib import Path
 from hashlib import md5
 from math import inf
+from urllib.parse import unquote, urlparse
 
 
 class Download:
@@ -71,7 +72,7 @@ class Download:
         if self.__time_end is not None:
             return self.__downloaded_bytes / (self.__time_end - self.__time_start)
 
-        if time.time() - self.__speed_time >= 1:
+        if time.time() - self.__speed_time >= 3:
             self.__speed_value = (self.__downloaded_bytes - self.__speed_bytes) / (time.time() - self.__speed_time)
             self.__speed_time = time.time()
             self.__speed_bytes = self.__downloaded_bytes
@@ -143,17 +144,9 @@ class Download:
                 self.__target_size = int(self.__target_size)
 
             if file_name is None and 'Content-Disposition' in req.headers:
-                re_filename = re.search('filename="(.*?)"', req.headers['Content-Disposition'], re.I | re.M)
-                if re_filename:
-                    file_name = re_filename.groups()[0]
+                file_name = self.parse_filename(req.headers['Content-Disposition'])
             if file_name is None:
-                file_name = Path(self.__url).name
-                if '?' in file_name:
-                    file_name = file_name[:file_name.index('?')]
-                if '#' in file_name:
-                    file_name = file_name[:file_name.index('#')]
-                if '.' not in file_name:
-                    file_name = file_name[::-1].replace('-', '.', 1)[::-1]
+                file_name = urlparse(self.__url).path
 
             self.__file_target = self.__dir_target.joinpath(Path(file_name).name).resolve()
             del file_name
@@ -212,6 +205,19 @@ class Download:
     @property
     def __file_chunk_suffix(self) -> str:
         return '.' + md5(self.__url.encode('utf8')).hexdigest() + '.chunk'
+
+    @staticmethod
+    def parse_filename(content_disposition: str) -> Optional[str]:
+        re_filename_basic = re.search('filename=.*', content_disposition, re.I | re.M)
+        re_filename_quoted = re.search('filename="(.*?)"', content_disposition, re.I | re.M)
+        re_filename_utf8 = re.search(r"filename\*=utf-8''(.*)", content_disposition, re.I | re.M)
+        if re_filename_utf8:
+            return unquote(re_filename_utf8.groups()[0])
+        if re_filename_quoted:
+            return re_filename_quoted.groups()[0]
+        if re_filename_basic:
+            return re_filename_basic.groups()[0]
+        return None
 
 
 if __name__ == '__main__':
